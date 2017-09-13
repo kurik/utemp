@@ -1,0 +1,17 @@
+#!/bin/bash
+
+LOGFILE="/mnt/utemp/var/log/utemp.log"
+LOGTAG="UTEMP:$(basename ${0})"
+GDRIVEPATH="Backups/Unin"
+IMPORTPHOTO="/mnt/store/scripts/importphoto.py"
+PY3="/usr/bin/python3"
+LOGGER="/usr/bin/logger"
+
+echo "Backup of UTEMP archives has started" | "${LOGGER}" -t "${LOGTAG}"
+for a in /mnt/utemp/var/archives/*.csv.bz2; do
+    "${PY3}" "${IMPORTPHOTO}" -g -N "$a" "${GDRIVEPATH}" |& "${LOGGER}" -t "${LOGTAG}"
+done
+echo "Backup of UTEMP archives is done" | "${LOGGER}" -t "${LOGTAG}"
+
+exit $?
+#EOF

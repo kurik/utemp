@@ -1,14 +1,12 @@
 #!/bin/bash
 
-#
-# TODO:
-# SELECT strftime('%Y-%m', stamputc, 'localtime') AS quantum, count(*) FROM temperature WHERE stamputc <= '2017-03-05' GROUP BY quantum;
-
+SQLC="/usr/bin/sqlite3"
+BZIP2="/usr/bin/bzip2"
 
 function help() {
-    echo "archive.sh <options> [day]" >&2
+    echo "$0 <options> [day]" >&2
     echo "  day ... archive check point day" >&2
-    echo "          format od the day is YYYY-MM-DD" >&2
+    echo "          format of the day is YYYY-MM-DD" >&2
     echo "          The default is the last day of the previous month" >&2
     echo "Options:" >&2
     echo "  -c|--current <database>  ... the database with current data" >&2
@@ -18,16 +16,18 @@ function help() {
     echo "                               The default is 'month'" >&2
     echo "  -f|--format <csv|db|sql> ... format of the archive files" >&2
     echo "                               The default is 'sql'" >&2
-    echo "  -r|--remove              ... Remove archived records from the current database" >&2
+    echo "  -r|--remove              ... remove archived records from the current database" >&2
+    echo "  -C|--compress            ... compress the archive" >&2
     exit $1
 }
 
 # Parse command line
-DATABASE=""
+DATABASE="current.db"
 PREFIX="./archive"
 GRANULARITY="month"
 FORMAT="sql"
 REMOVE=""
+COMPRESS=""
 DAY=$(date +'%Y-%m-%d' -d "-$(date +%d) days")
 while [[ $# -ne 0 ]]; do
     case "$1" in
@@ -66,6 +66,9 @@ while [[ $# -ne 0 ]]; do
         "-r"|"--remove")
             REMOVE="1"
             ;;
+        "-C"|"--compress")
+            COMPRESS="1"
+            ;;
         "--help")
             help 0
             ;;
@@ -81,15 +84,15 @@ while [[ $# -ne 0 ]]; do
 done
 
 # Check mandatory parameters
-[[ -z "${DATABASE}" ]] && { echo "Missing mandatory database parameter '-d'" >&2; help 1; }
+[[ -z "${DATABASE}" ]] && { echo "Missing mandatory database parameter '-c'" >&2; help 1; }
 
 
 # Debug info
-echo "Database:" $DATABASE
-echo "Prefix:" $PREFIX
-echo "Granularity:" $GRANULARITY
-echo "Format:" $FORMAT
-echo "Day:" $DAY
+#echo "Database:" $DATABASE
+#echo "Prefix:" $PREFIX
+#echo "Granularity:" $GRANULARITY
+#echo "Format:" $FORMAT
+#echo "Day:" $DAY
 
 #
 # Returns list of time quantas
@@ -119,7 +122,7 @@ function get_time_quantas() {
         FROM temperature
         WHERE stamputc <= datetime('${DAY} 23:59:59', 'localtime')
         GROUP BY stamp
-        ORDER BY stamp;" | sqlite3 "${DATABASE}" && return 0
+        ORDER BY stamp;" | "${SQLC}" "${DATABASE}" && return 0
 
     echo "Unknown error when querying database ${DATABASE}" >&2
     return 1
@@ -186,6 +189,12 @@ function archive_quantum() {
             archive_quantum_csv "${g}" $* || return $?
             ;;
     esac
+    # Compress the file if requested and the file has any content
+    if [[ -s "${1}" ]]; then
+        [[ -n "${COMPRESS}" ]] && "${BZIP2}" "${1}"
+    else
+        rm -f "${1}"
+    fi
     return 0
 }
 
@@ -196,7 +205,7 @@ function archive_quantum_csv() {
         WHERE strftime('${1}', stamputc, 'localtime') = '${3}';"
     [[ -n "${REMOVE}" ]] && \
         echo "DELETE FROM temperature WHERE strftime('${1}', stamputc, 'localtime') = '${3}';"
-    } | sqlite3 "${DATABASE}" >> "${2}"
+    } | "${SQLC}" "${DATABASE}" >> "${2}"
 
     return $?
 }
@@ -208,7 +217,7 @@ function archive_quantum_sql() {
         WHERE strftime('${1}', stamputc, 'localtime') = '${3}';"
     [[ -n "${REMOVE}" ]] && \
         echo "DELETE FROM temperature WHERE strftime('${1}', stamputc, 'localtime') = '${3}';"
-    } | sqlite3 "${DATABASE}" >> "${2}"
+    } | "${SQLC}" "${DATABASE}" >> "${2}"
 
     return $?
 }
@@ -231,7 +240,7 @@ function archive_quantum_db() {
         echo "DELETE FROM db.temperature WHERE strftime('${1}', stamputc, 'localtime') = '${3}';"
 
     echo "DETACH db;"
-    } | sqlite3 "${2}"
+    } | "${SQLC}" "${2}"
 
     return $?
 }

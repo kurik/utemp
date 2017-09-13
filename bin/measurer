@@ -2,19 +2,18 @@
 
 W1_BUS='/sys/bus/w1/devices'
 SQLITE="/usr/bin/sqlite3"
-DB=""
+DB="/mnt/utemp/var/current.db"
+LOGGER="/usr/bin/logger"
+LOGTAG="UTEMP:$(basename $0)"
 CREATE=""
 
 function help {
-    echo "Measure tempereture and store it in a database file" >&2
-    echo "" >&2
-    echo "Usage:" >&2
-    echo "$0 [options] <database>" >&2
-    echo "Options:" >&2
-    echo "   -c|--create ... Create the DB if it is not already created" >&2
-    echo "Parameters:" >&2
-    echo "   database    ... the database file to insert the measured values into" >&2
-    exit $1
+        echo "$0 [options] <database>" >&2
+        echo "Options:" >&2
+        echo "   -c|--create ... Create the DB if it is not already created" >&2
+        echo "Parameters:" >&2
+        echo "   database    ... the database file to insert the measured values into" >&2
+        exit $1
 }
 
 function createdb {
@@ -37,6 +36,8 @@ function measure {
     # Exits immediatelly if no sensor is available
     ls ${W1_BUS}/*/w1_slave >& /dev/null || return 1
 
+    log "Starting to measure temperature"
+    i=0
     # Read data from all the available sensors
     for sensor in ${W1_BUS}/*/w1_slave; do
         measurement=$(cat "${sensor}")
@@ -46,7 +47,9 @@ function measure {
             temperature=$(echo "${measurement}"|tail -1|cut -d '=' -f 2)
             echo ${sensor} ${temperature}
         fi
+        i=$(( $i + 1 ))
     done
+    log "Temperature measured for $i sensors"
     return 0
 }
 
@@ -56,6 +59,10 @@ function printsql {
         echo -n $(date -u +'%Y-%m-%d %H:%M:%S')
         echo "',${temperature},'${sensor}');"
     done
+}
+
+function log {
+    echo $* | "${LOGGER}" -t "${LOGTAG}"
 }
 
 # Parse command line
@@ -70,19 +77,19 @@ while [[ $# -ne 0 ]]; do
     shift
 done
 
-[[ -z "${DB}" ]] && { echo "Missing database parametr." >&2; help 1; }
-
 # Create DB if required
 if [[ -n "${CREATE}" ]]; then
+    log "Creating database ${DB}"
     createdb | "${SQLITE}" "${DB}"
     ERR=$?
-    [[ ${ERR} -ne 0 ]] && exit ${ERR}
+    [[ ${ERR} -ne 0 ]] && { log "Creation of database ${DB} has failed"; exit ${ERR}; }
 fi
 
 # Do the measurement and save the results in DB
 printsql | "${SQLITE}" "${DB}"
 ERR=$?
-[[ ${ERR} -ne 0 ]] && exit ${ERR}
+[[ ${ERR} -ne 0 ]] && { log "Save of measured values has failed"; exit ${ERR}; }
+log "Measured values saved into ${DB}"
 
 exit 0
 #EOF

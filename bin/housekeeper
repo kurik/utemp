@@ -1,0 +1,35 @@
+#!/bin/bash
+
+SQLC="/usr/bin/sqlite3"
+
+function help() {
+    echo "housekeeper <options>" >&2
+    echo "Options:" >&2
+    echo "  -c|--current <database>  ... the database with current data" >&2
+    exit $1
+}
+
+# Parse command line
+CDB=""
+while [[ $# -ne 0 ]]; do
+    case "$1" in
+        "-c"|"--current")
+            shift
+            CDB="$1"
+            ;;
+        *)
+            echo "Invalid parameter '$1'" >&2
+            help 1
+            ;;
+    esac
+    shift
+done
+
+# Check mandatory parameters
+[[ -z "${CDB}" ]] && { echo "Missing mandatory database parameter '-c'" >&2; help 1; }
+
+# Perform Vacuum on the provided database
+echo "VACUUM;" | "${SQLC}" "${CDB}"
+
+exit 0
+#EOF

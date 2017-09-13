@@ -1,0 +1,15 @@
+# UNIN TEMPERATURE
+# Measure temperature every 2 minutes
+*/2 * * * * /mnt/utemp/bin/measurer
+# Aggregate values from the previous day
+33 03 * * * /mnt/utemp/bin/aggregator
+# Archive data from the previous month
+33 01 */5 * * /mnt/utemp/bin/archiver -f csv -c /mnt/utemp/var/current.db -a /mnt/utemp/var/archives/ -r -C
+# Perform house keeping when archiving is done
+15 03 */5 * * /mnt/utemp/bin/housekeeper -c /mnt/utemp/var/current.db
+# Publish current data every 5 minutes
+*/5 * * * * /mnt/utemp/bin/publisher -i /mnt/utemp/etc/temp_upload.json -s /mnt/utemp/etc/temp_upload -d '1B1uH_PGEsmY2UeA_LkbVL6zGwgxRNLAJZxFHR6XtGj4' -c '/mnt/utemp/var/current.db' -a /mnt/utemp/var/aggregation.db --current 28-000001b4337c 28-000001b4754f
+# Publish aggregated data once a day
+17 4 * * * /mnt/utemp/bin/publisher -i /mnt/utemp/etc/temp_upload.json -s /mnt/utemp/etc/temp_upload -d '1B1uH_PGEsmY2UeA_LkbVL6zGwgxRNLAJZxFHR6XtGj4' -c '/mnt/utemp/var/current.db' -a /mnt/utemp/var/aggregation.db --daily --weekly --monthly --annualy 28-000001b4337c 28-000001b4754f
+# Backup archives
+23 4 01,02,04,08,16,28 * * /mnt/utemp/bin/backuper

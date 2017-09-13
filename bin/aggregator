@@ -1,0 +1,142 @@
+#!/bin/bash
+
+YESTERDAY="$(/usr/bin/date '+%Y-%m-%d' -d 'yesterday')"
+CDB="/mnt/utemp/var/current.db"
+ADB="/mnt/utemp/var/aggregation.db"
+SQLITE="/usr/bin/sqlite3"
+###########################################################
+
+function header() {
+    echo "
+    -- Attach databases    
+    ATTACH '${ADB}' AS a;
+    ATTACH '${CDB}' AS c;
+    "
+}
+
+function footer() {
+    echo "
+    -- Cleanup
+    -- VACUUM c;
+    -- VACUUM a;
+    "
+}
+
+function daily {
+    echo "
+    -- Remove obsolete stats
+    DELETE FROM a.daily WHERE a.daily.day = '%%DAY%%';
+    -- Aggregate daily stats
+    INSERT INTO a.daily SELECT
+        NULL,
+        '%%DAY%%',
+        avg(c.temperature.temperature),
+        min(c.temperature.temperature),
+        max(c.temperature.temperature),
+        c.temperature.sensor,
+        (
+            time(c.temperature.stamputc) > a.daylight.sunriseutc
+            AND time(c.temperature.stamputc) < a.daylight.sunsetutc
+        ) AS dl,
+        count(c.temperature.temperature)
+    FROM
+        c.temperature,
+        a.daylight
+    WHERE
+        strftime('%m-%d', c.temperature.stamputc) = a.daylight.day
+        AND strftime('%Y-%m-%d', c.temperature.stamputc, 'localtime') = '%%DAY%%'
+    GROUP BY
+        c.temperature.sensor,
+        dl;
+    " | sed "s/%%DAY%%/$1/g"
+}
+
+function weekly {
+    echo "
+    -- Remove obsolete stats
+    DELETE FROM a.weekly WHERE a.weekly.week = strftime('%Y-%W', '%%DAY%%');
+    -- Aggregate weekly stats
+    INSERT INTO a.weekly SELECT
+        NULL,
+        strftime('%Y-%W', a.daily.day),
+        sum(a.daily.temperature * a.daily.samples) / sum(a.daily.samples),
+        min(a.daily.mintemperature),
+        max(a.daily.maxtemperature),
+        a.daily.sensor,
+        a.daily.daylight,
+        sum(a.daily.samples)
+    FROM
+        a.daily
+    WHERE
+        a.daily.day > date('%%DAY%%', '-' || strftime('%w', '%%DAY%%') || ' day', '-7 day')
+        AND a.daily.day <= date('%%DAY%%', '-' || strftime('%w', '%%DAY%%') || ' day')
+    GROUP BY
+        a.daily.sensor,
+        a.daily.daylight;
+    " | sed "s/%%DAY%%/$1/g"
+}
+
+function monthly {
+    echo "
+    -- Remove obsolete stats
+    DELETE FROM a.monthly WHERE a.monthly.month = strftime('%Y-%m', '%%DAY%%');
+    --Aggregate monthly stats
+    INSERT INTO a.monthly SELECT
+        NULL,
+        strftime('%Y-%m', a.daily.day),
+        sum(a.daily.temperature * a.daily.samples) / sum(a.daily.samples),
+        min(a.daily.mintemperature),
+        max(a.daily.maxtemperature),
+        a.daily.sensor,
+        a.daily.daylight,
+        sum(a.daily.samples)
+    FROM
+        a.daily
+    WHERE
+        a.daily.day <= date('%%DAY%%', '+1 month', 'start of month', '-1 day')
+        AND a.daily.day > date('%%DAY%%', 'start of month', '-1 day')
+    GROUP BY
+        a.daily.sensor,
+        a.daily.daylight;
+    " | sed "s/%%DAY%%/$1/g"
+}
+
+function annualy {
+    echo "
+    -- Remove obsolete stats
+    DELETE FROM a.annualy WHERE a.annualy.year = strftime('%Y', '%%DAY%%');
+    --Aggregate annualy stats
+    INSERT INTO a.annualy SELECT
+        NULL,
+        strftime('%Y', a.daily.day),
+        sum(a.daily.temperature * a.daily.samples) / sum(a.daily.samples),
+        min(a.daily.mintemperature),
+        max(a.daily.maxtemperature),
+        a.daily.sensor,
+        a.daily.daylight,
+        sum(a.daily.samples)
+    FROM
+        a.daily
+    WHERE
+        a.daily.day <= date('%%DAY%%', '+1 year', 'start of year', '-1 day')
+        AND a.daily.day > date('%%DAY%%', 'start of year', '-1 day')
+    GROUP BY
+        a.daily.sensor,
+        a.daily.daylight;
+    " | sed "s/%%DAY%%/$1/g"
+}
+
+###########################################################
+echo "Aggregating data for day ${YESTERDAY}"
+(
+    header
+    daily "${YESTERDAY}"
+    weekly "${YESTERDAY}"
+    monthly "${YESTERDAY}"
+    annualy "${YESTERDAY}"
+    footer
+) | "${SQLITE}"
+echo "Aggregation of data for day ${YESTERDAY} is finished"
+
+exit $?
+#EOF
