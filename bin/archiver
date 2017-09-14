@@ -2,6 +2,12 @@
 
 SQLC="/usr/bin/sqlite3"
 BZIP2="/usr/bin/bzip2"
+LOGGER="/usr/bin/logger"
+LOGTAG="UTEMP:$(basename $0)"
+
+function log {
+    echo $* | "${LOGGER}" -t "${LOGTAG}"
+}
 
 function help() {
     echo "$0 <options> [day]" >&2
@@ -86,20 +92,13 @@ done
 # Check mandatory parameters
 [[ -z "${DATABASE}" ]] && { echo "Missing mandatory database parameter '-c'" >&2; help 1; }
 
-
-# Debug info
-#echo "Database:" $DATABASE
-#echo "Prefix:" $PREFIX
-#echo "Granularity:" $GRANULARITY
-#echo "Format:" $FORMAT
-#echo "Day:" $DAY
-
 #
 # Returns list of time quantas
 #
 function get_time_quantas() {
     local qstr
 
+    log "Calculating time quantas for granularity '${GRANULARITY}'"
     case "${GRANULARITY}" in
         "day")
             qstr="%Y-%m-%d"
@@ -122,10 +121,14 @@ function get_time_quantas() {
         FROM temperature
         WHERE stamputc <= datetime('${DAY} 23:59:59', 'localtime')
         GROUP BY stamp
-        ORDER BY stamp;" | "${SQLC}" "${DATABASE}" && return 0
-
-    echo "Unknown error when querying database ${DATABASE}" >&2
-    return 1
+        ORDER BY stamp;" | "${SQLC}" "${DATABASE}"
+    if [[ $? -eq 0 ]]; then
+        log "Calculation is done"
+        return 0
+    else
+        log "Unknown error when querying database ${DATABASE}" 
+        return 1
+    fi
 }
 
 #
@@ -163,6 +166,7 @@ function get_list_of_archives() {
 function archive_quantum() {
     local g
 
+    log "Archiving to '$1' using granularity '${GRANULARITY}' and format '${FORMAT}'"
     case "${GRANULARITY}" in
         "day")
             g="%Y-%m-%d"
@@ -189,10 +193,16 @@ function archive_quantum() {
             archive_quantum_csv "${g}" $* || return $?
             ;;
     esac
+    log "Archivation is done"
     # Compress the file if requested and the file has any content
     if [[ -s "${1}" ]]; then
-        [[ -n "${COMPRESS}" ]] && "${BZIP2}" "${1}"
+        if [[ -n "${COMPRESS}" ]]; then
+            log "Compressing the archived file '$1'"
+            "${BZIP2}" "${1}"
+            log "Compression is done"
+        fi
     else
+        log "The archive has no content, removing"
         rm -f "${1}"
     fi
     return 0

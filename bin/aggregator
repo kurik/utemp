@@ -4,7 +4,13 @@ YESTERDAY="$(/usr/bin/date '+%Y-%m-%d' -d 'yesterday')"
 CDB="/mnt/utemp/var/current.db"
 ADB="/mnt/utemp/var/aggregation.db"
 SQLITE="/usr/bin/sqlite3"
+LOGGER="/usr/bin/logger"
+LOGTAG="UTEMP:$(basename ${0})"
 ###########################################################
+
+function log() {
+    echo "$*" | "${LOGGER}" -t "${LOGTAG}"
+}
 
 function header() {
     echo "
@@ -23,6 +29,7 @@ function footer() {
 }
 
 function daily {
+    log "Starting daily aggregations"
     echo "
     -- Remove obsolete stats
     DELETE FROM a.daily WHERE a.daily.day = '%%DAY%%';
@@ -49,9 +56,11 @@ function daily {
         c.temperature.sensor,
         dl;
     " | sed "s/%%DAY%%/$1/g"
+    log "Daily aggregations finished"
 }
 
 function weekly {
+    log "Starting weekly aggregations"
     echo "
     -- Remove obsolete stats
     DELETE FROM a.weekly WHERE a.weekly.week = strftime('%Y-%W', '%%DAY%%');
@@ -74,9 +83,11 @@ function weekly {
         a.daily.sensor,
         a.daily.daylight;
     " | sed "s/%%DAY%%/$1/g"
+    log "Weekly aggregations finished"
 }
 
 function monthly {
+    log "Starting monthly aggregations"
     echo "
     -- Remove obsolete stats
     DELETE FROM a.monthly WHERE a.monthly.month = strftime('%Y-%m', '%%DAY%%');
@@ -99,9 +110,11 @@ function monthly {
         a.daily.sensor,
         a.daily.daylight;
     " | sed "s/%%DAY%%/$1/g"
+    log "Monthly aggregations finished"
 }
 
 function annualy {
+    log "Starting annualy aggregations"
     echo "
     -- Remove obsolete stats
     DELETE FROM a.annualy WHERE a.annualy.year = strftime('%Y', '%%DAY%%');
@@ -124,10 +137,11 @@ function annualy {
         a.daily.sensor,
         a.daily.daylight;
     " | sed "s/%%DAY%%/$1/g"
+    log "Annualy aggregations finished"
 }
 
 ###########################################################
-echo "Aggregating data for day ${YESTERDAY}"
+log "Aggregating data for day ${YESTERDAY}"
 (
     header
     daily "${YESTERDAY}"
@@ -136,7 +150,8 @@ echo "Aggregating data for day ${YESTERDAY}"
     annualy "${YESTERDAY}"
     footer
 ) | "${SQLITE}"
-echo "Aggregation of data for day ${YESTERDAY} is finished"
+ERR=$?
+log "Aggregation of data for day ${YESTERDAY} is finished"
 
-exit $?
+exit $ERR
 #EOF
