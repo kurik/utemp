@@ -1,6 +1,12 @@
 #!/bin/bash
 
 SQLC="/usr/bin/sqlite3"
+LOGGER="/usr/bin/logger"
+LOGTAG="UTEMP:$(basename ${0})"
+
+function log() {
+    echo "$*" | "${LOGGER}" -t "${LOGTAG}"
+}
 
 function help() {
     echo "housekeeper <options>" >&2
@@ -18,6 +24,7 @@ while [[ $# -ne 0 ]]; do
             CDB="$1"
             ;;
         *)
+            log "Invalid parameter '$1'"
             echo "Invalid parameter '$1'" >&2
             help 1
             ;;
@@ -26,10 +33,12 @@ while [[ $# -ne 0 ]]; do
 done
 
 # Check mandatory parameters
-[[ -z "${CDB}" ]] && { echo "Missing mandatory database parameter '-c'" >&2; help 1; }
+[[ -z "${CDB}" ]] && { EMSG="Missing mandatory database parameter '-c'"; echo "${EMSG}" >&2; log "${EMSG}"; help 1; }
 
 # Perform Vacuum on the provided database
+log "Starting housekeeping of '${CDB}' database"
 echo "VACUUM;" | "${SQLC}" "${CDB}"
+log "Housekeeping of '${CDB}' database is done"
 
 exit 0
 #EOF
