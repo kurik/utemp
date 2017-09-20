@@ -3,11 +3,9 @@
 CDB="/mnt/utemp/var/current.db"
 SQLC="/usr/bin/sqlite3"
 
-TEMP=$("${SQLC}" "${CDB}" "SELECT MAX(stamputc), sensor, temperature FROM temperature WHERE sensor='28-000001b4754f'") || exit 1
-#echo T1: "${TEMP}"
+read SENSOR
 
-#TEMP=$(echo "${TEMP}" | grep "28-000001b4754f") || exit 1
-#echo T2: ${TEMP}
+TEMP=$("${SQLC}" "${CDB}" "SELECT MAX(stamputc), sensor, temperature FROM temperature WHERE sensor='${SENSOR}'") || exit 1
 
 echo "${TEMP}" | cut -d "|" -f 3 | cut -d "." -f 1
 
