@@ -1,0 +1,9 @@
+[Unit]
+Description=Get the current temperature from UTemp
+
+[Socket]
+ListenStream=9999
+Accept=yes
+
+[Install]
+WantedBy=sockets.target

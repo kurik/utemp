@@ -1,0 +1,13 @@
+[Unit]
+Description=Get the current temperature from UTemp
+Requires=gettemp.socket
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/bash /mnt/utemp/bin/gettemp
+StandardInput=socket
+StandardError=journal
+TimeoutStopSec=5
+
+[Install]
+WantedBy=multi-user.target
