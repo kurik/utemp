@@ -4,7 +4,7 @@
 # Aggregate values from the previous day
 33 03 * * * /mnt/utemp/bin/aggregator
 # Archive data from the previous month
-33 01 */5 * * /mnt/utemp/bin/archiver -f csv -c /mnt/utemp/var/current.db -a /mnt/utemp/var/archives/ -r -C
+33 01 */5 * * /mnt/utemp/bin/archiver -f csv -c /mnt/utemp/var/current.db -a /mnt/utemp/var/archives/ -C
 # Perform house keeping when archiving is done
 15 03 */5 * * /mnt/utemp/bin/housekeeper -c /mnt/utemp/var/current.db
 # Publish current data every 5 minutes
