@@ -117,9 +117,9 @@ function get_time_quantas() {
             exit 1
             ;;
     esac
-    echo "SELECT strftime('${qstr}', stamputc, 'utc') AS stamp
+    echo "SELECT strftime('${qstr}', stamputc, 'localtime') AS stamp
         FROM temperature
-        WHERE stamputc <= datetime('${DAY} 23:59:59', 'localtime')
+        WHERE stamputc <= datetime('${DAY} 23:59:59', 'utc')
         GROUP BY stamp
         ORDER BY stamp;" | "${SQLC}" "${DATABASE}"
     if [[ $? -eq 0 ]]; then
