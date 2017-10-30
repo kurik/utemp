@@ -6,6 +6,7 @@ DB="/mnt/utemp/var/current.db"
 LOGGER="/usr/bin/logger"
 LOGTAG="UTEMP:$(basename $0)"
 CREATE=""
+RETRIES=3 # Number of retries when read from a sensor fails
 
 function help {
         echo "$0 [options] <database>" >&2
@@ -40,13 +41,34 @@ function measure {
     i=0
     # Read data from all the available sensors
     for sensor in ${W1_BUS}/*/w1_slave; do
-        measurement=$(cat "${sensor}")
-        stat=$(echo "${measurement}"|head -1|cut -d ' ' -f 12)
-        if [[ "${stat}" = "YES" ]]; then
-            sensor=$(echo "${sensor}" | cut -d '/' -f 6)
-            temperature=$(echo "${measurement}"|tail -1|cut -d '=' -f 2)
-            echo ${sensor} ${temperature}
-        fi
+        err=${RETRIES}
+        while [[ ${err} -ne 0 ]]; do
+            measurement=$(cat "${sensor}")
+            stat=$(echo "${measurement}"|head -1|cut -d ' ' -f 12)
+            if [[ "${stat}" = "YES" ]]; then
+                sensor=$(echo "${sensor}" | cut -d '/' -f 6)
+                temperature=$(echo "${measurement}"|tail -1|cut -d '=' -f 2)
+                if [[ ${temperature} -gt 80000 ]]; then
+                    # Sensor error
+                    attempt=$(( ${RETRIES} - ${err} + 1))
+                    log "Reading of temperature from sensor ${sensor} failed (Temperature too high: ${temperature})"
+                    log "Retry attempt #${attempt}"
+                    err=$(( ${err} - 1 ))
+                    sleep ${attempt} # Progressive attempt
+                else
+                    # OK
+                    echo ${sensor} ${temperature}
+                    err=0
+                fi
+            else
+                # Sensor error
+                attempt=$(( ${RETRIES} - ${err} + 1))
+                log "Reading of temperature from sensor ${sensor} failed (Error code received)"
+                log "Retry attempt #${attempt}"
+                err=$(( ${err} - 1 ))
+                sleep ${attempt} # Progressive attempt
+            fi
+        done
         i=$(( $i + 1 ))
     done
     log "Temperature measured for $i sensors"
