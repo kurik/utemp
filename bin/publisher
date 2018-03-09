@@ -6,6 +6,7 @@ from apiclient.discovery import build
 from oauth2client.file import Storage
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.tools import run_flow
+from oauth2client import tools
 
 import logging
 import argparse
@@ -24,7 +25,7 @@ class SmartFormatter(argparse.HelpFormatter):
         return argparse.HelpFormatter._split_lines(self, text, width)
 
 # Parse command line
-parser = argparse.ArgumentParser(add_help = True, formatter_class = SmartFormatter)
+parser = argparse.ArgumentParser(parents=[tools.argparser], add_help = True, formatter_class = SmartFormatter)
 group = parser.add_mutually_exclusive_group()
 group.add_argument("-v", "--verbose", dest = "verbose", action = 'count', default = 0,
     help = "Be verbose. More -v parameters ensures more verbosity.")
@@ -109,7 +110,7 @@ class GAuth(object):
         self.creds = self.store.get()
         if self.creds is None or self.creds.invalid:
             flow = flow_from_clientsecrets(self.oauth2json, self.scope)
-            self.creds = run_flow(flow, self.store, parser.parse_args())
+            self.creds = run_flow(flow, self.store, cmdline)
             self.store.put(self.creds)
         if 'spreadsheets' in self.scope.lower():
             logging.debug('Authenticating as sheets')
